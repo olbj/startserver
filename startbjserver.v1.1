@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# Simple script for starting bjserver when Olle's or Irma's iPhones enters home
+# Copyright (C) 2015  Olof Björkqvist <olof@bjorkqvist.nu>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# any later version.
+#  
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# The script works on OpenWrt Barrier Breaker 14.07
+# Used packages: net-tools-arp and etherwake
+
+# 1: Find out if it is workday or weekend
+DAY=$(date +%u)
+
+# 2: Find out time of day
+TIME=$(date +%k)
+let TIME+=1
+
+# Debug 
+# DAY=2
+# TIME=22
+# End debug
+
+# echo $DAY
+# echo $TIME
+# if [ "$DAY" -ge 5 -a  "$TIME" -lt 11 ]; then echo saturday exit; fi
+# if [ "$DAY" -le 5 -a  "$TIME" -lt 16 ]; then echo weekday exit; fi
+# if [ "$TIME" -ge 22 ]; then echo evening exit; fi
+
+if [ "$DAY" -ge 5 -a  "$TIME" -lt 11 ]; then exit 0; fi
+if [ "$DAY" -le 5 -a  "$TIME" -lt 16 ]; then exit 0; fi
+if [ "$TIME" -ge 22 ]; then exit 0; fi
+
+# 3: Create variables for further testing
+OLLES=$( arp -vn | grep 54:72:4f:00:af:ae )
+IRMAS=$( arp -vn | grep 54:ae:27:98:00:52 )
+# echo $OLLES
+# echo $IRMAS
+BJSERVER=$( arp -vn | grep 90:2b:34:53:7a:96 )
+count=$( ping -c 1 -W 5 192.168.0.2 | grep "1 packets received" | wc -l )
+
+# 4: Stop script if bjserver (192.168.0.2) is alive
+if [ $count -gt 0 ]; then echo bjserver alive exit; fi
+if [ $count -gt 0 ]; then exit 0; fi
+
+# 5: Start bjserver if one of Olle's or Irma's iPhones are at home
+if [[ -n "$OLLES" || -n "$IRMAS" ]]; then 
+	logger "Starting bjserver"
+	etherwake -i br-lan 90:2b:34:53:7a:96
+fi
