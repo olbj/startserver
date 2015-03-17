@@ -19,55 +19,69 @@
 # The script works on OpenWrt Barrier Breaker 14.07
 # Used packages: net-tools-arp and etherwake
 
+# Variables
+Phone1=54:72:4f:00:af:ae
+Phone2=54:ae:27:98:00:52
+Server=90:2b:34:53:7a:96
+StartWorkdays=16
+StartWeekend=11
+Stoptime=22
+
 # 1: Find out if it is workday or weekend
 DAY=$(date +%u)
 
 # 2: Find out time of day
 TIME=$(date +%k)
+# Adjust time from GMT to CET
 let TIME+=1
 MINUTE=$(date +%M)
 
 # 3: Create variables for further testing
-OLLES=$( arp -vn | grep 54:72:4f:00:af:ae | awk '{print $1}' )
-IRMAS=$( arp -vn | grep 54:ae:27:98:00:52 | awk '{print $1}' )
+OLLES=$( arp -vn | grep "$Phone1" | awk '{print $1}' )
+IRMAS=$( arp -vn | grep "$Phone2" | awk '{print $1}' )
 
 # Debug 
-# DAY=5
-# TIME=15
-# MINUTE=55
+# DAY=7
+# TIME=12
+# MINUTE=50
 # echo Day: $DAY
 # echo Hour: $TIME
 # echo Minute: $MINUTE
-# echo Olles iPhone: $OLLES
-# echo Irmas iPhone: $IRMAS
-# if [ "$DAY" -gt 5 -a  "$TIME" -lt 11 ]; then echo saturday exit; fi
-# if [ "$DAY" -le 5 -a  "$TIME" -lt 16 ]; then echo weekday exit; fi
-# if [ "$TIME" -ge 22 ]; then echo evening exit; fi
+# echo Olles iPhone ip: $OLLES
+# echo Irmas iPhone ip: $IRMAS
+# if [ "$DAY" -gt 5 -a  "$TIME" -lt "$StartWeekend" ]; then echo weekend exit; fi
+# if [ "$DAY" -le 5 -a  "$TIME" -lt "$StartWorkdays" ]; then echo weekday exit; fi
+# if [ "$TIME" -ge "$Stoptime" ]; then echo evening exit; fi
 # End debug
 
+# Delete arp entries before the startup periods
 if [ "$DAY" -le 5 -a  "$TIME" -eq 15 -a "$MINUTE" -ge 50 ] || [ "$DAY" -gt 5 -a "$TIME" -eq 10 -a "$MINUTE" -ge 50 ]; then
-echo test one: this is time to delete arp entries
+#	echo It is time to delete arp entries
 if [ -n "$OLLES" ]; then 
-arp -vn | grep 54:72:4f:00:af:ae | awk '{print $1}' | xargs arp -d
+	arp -vn | grep "$Phone1" | awk '{print $1}' | xargs arp -d
 fi
 if [ -n "$IRMAS" ]; then 
-arp -vn | grep 54:ae:27:98:00:52 | awk '{print $1}' | xargs arp -d
+	arp -vn | grep "$Phone2" | awk '{print $1}' | xargs arp -d
 fi
 fi
 
-if [ "$DAY" -le 5 -a  "$TIME" -lt 16 ]; then exit 0; fi
-if [ "$DAY" -gt 5 -a  "$TIME" -lt 11 ]; then exit 0; fi
+if [ "$DAY" -le 5 -a  "$TIME" -lt "$StartWorkdays" ]; then exit 0; fi
+if [ "$DAY" -gt 5 -a  "$TIME" -lt "$StartWeekend" ]; then exit 0; fi
 if [ "$TIME" -ge 22 ]; then exit 0; fi
 
-BJSERVER=$( arp -vn | grep 90:2b:34:53:7a:96 )
-count=$( ping -c 1 -W 5 192.168.0.2 | grep "1 packets received" | wc -l )
+# Get IP-number of the server
+BJSERVER=$( arp -vn | grep "$Server" | awk '{print $1}' )
+count=$( ping -c 1 -W 5 "$BJSERVER" | grep "1 packets received" | wc -l )
+# echo bjserver ip: $BJSERVER
+# echo ping count: $count
 
-# 4: Stop script if bjserver (192.168.0.2) is alive
+# 4: Stop script if bjserver is alive
 # if [ $count -gt 0 ]; then echo bjserver alive exit; fi
 if [ $count -gt 0 ]; then exit 0; fi
 
 # 5: Start bjserver if one of Olle's or Irma's iPhones are at home
 if [[ -n "$OLLES" || -n "$IRMAS" ]]; then 
+#	echo Starting bjserver
 	logger "Starting bjserver"
-	etherwake -i br-lan 90:2b:34:53:7a:96
+	etherwake -i br-lan "$Server"
 fi
